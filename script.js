@@ -12,11 +12,11 @@ const SUPABASE_URL = 'https://vzehtaigujsdlexzvais.supabase.co';
 
 const SUPABASE_ANON_KEY = 'sb_publishable_MFVbyq7BLYggFxiTOanlZw_zmcdPghr';
 
-let supabase = null;
+let supabaseClient = null;
 
 try {
     if (window.supabase) {
-        supabase = window.supabase.createClient(
+        supabaseClient = window.supabase.createClient(
             SUPABASE_URL,
             SUPABASE_ANON_KEY
         );
@@ -235,6 +235,8 @@ const challengeModal = document.getElementById('challengeModal');
 const stepCreate = document.getElementById('stepCreate');
 
 const stepShare = document.getElementById('stepShare');
+
+const stepCode = document.getElementById('stepCode');
 
 const stepJoin = document.getElementById('stepJoin');
 
@@ -908,6 +910,7 @@ function showModalStep(step) {
     [
         stepCreate,
         stepShare,
+        stepCode,
         stepJoin,
         stepWaiting,
         stepResults
@@ -1004,6 +1007,108 @@ function readChallengeLink() {
 
 
 // ======================================================
+// 20b. JOIN A CHALLENGE USING A CODE
+// ======================================================
+
+document.getElementById('joinCodeBtn').addEventListener(
+    'click',
+    () => {
+
+        challengeModal.classList.remove('hidden');
+
+        showModalStep(stepCode);
+
+    }
+);
+
+
+document.getElementById('findChallengeBtn').addEventListener(
+    'click',
+    async () => {
+
+        let code = document
+            .getElementById('joinCodeInput')
+            .value.trim().toUpperCase();
+
+        if (!code) {
+
+            alert("Please enter the challenge code!");
+
+            return;
+
+        }
+
+        if (!code.startsWith('BP-')) code = 'BP-' + code;
+
+        if (!supabaseClient) {
+
+            alert("Unable to connect to the game server. Please try again.");
+
+            return;
+
+        }
+
+        const findButton =
+            document.getElementById('findChallengeBtn');
+
+        findButton.disabled = true;
+
+        findButton.textContent = "Searching...";
+
+        try {
+
+            const { data, error } = await supabaseClient
+
+                .from('challenges')
+
+                .select('id, seed')
+
+                .eq('challenge_code', code)
+
+                .order('created_at', { ascending: false })
+
+                .limit(1);
+
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+
+                throw new Error("No challenge found with that code.");
+
+            }
+
+            currentChallengeId = data[0].id;
+
+            currentSeed = Number(data[0].seed);
+
+            currentPlayerSlot = 'player_b';
+
+            modeBadge.textContent = "⚔️ MULTIPLAYER CHALLENGE";
+
+            modeBadge.style.color = "#eab308";
+
+            showModalStep(stepJoin);
+
+        } catch (error) {
+
+            console.error("Finding challenge failed:", error);
+
+            alert(error.message || "Could not find that challenge.");
+
+        } finally {
+
+            findButton.disabled = false;
+
+            findButton.textContent = "Find Challenge";
+
+        }
+
+    }
+);
+
+
+
+// ======================================================
 // 21. CREATE MULTIPLAYER CHALLENGE
 // ======================================================
 
@@ -1025,7 +1130,7 @@ document.getElementById('createInviteBtn').addEventListener(
         }
 
 
-        if (!supabase) {
+        if (!supabaseClient) {
 
             alert(
                 "Unable to connect to the game server. Please try again."
@@ -1052,14 +1157,20 @@ document.getElementById('createInviteBtn').addEventListener(
                 Math.random() * 1000000
             );
 
-            const code = 'BP-' + Math.floor(
-                1000 + Math.random() * 9000
-            );
+            const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+            let suffix = '';
+
+            for (let i = 0; i < 4; i++) {
+                suffix += letters[Math.floor(Math.random() * letters.length)];
+            }
+
+            const code = 'BP-' + suffix;
 
 
             // Create challenge in Supabase
 
-            const { data: challenge, error } = await supabase
+            const { data: challenge, error } = await supabaseClient
 
                 .from('challenges')
 
@@ -1095,7 +1206,7 @@ document.getElementById('createInviteBtn').addEventListener(
             // Register Player A
 
             const { error: participantError } =
-                await supabase
+                await supabaseClient
 
                     .from('challenge_participants')
 
@@ -1134,6 +1245,26 @@ document.getElementById('createInviteBtn').addEventListener(
             showModalStep(stepShare);
 
 
+            // Copy challenge code
+
+            document.getElementById('copyCodeBtn').onclick =
+                async () => {
+
+                    try {
+
+                        await navigator.clipboard.writeText(code);
+
+                        alert("Code copied: " + code);
+
+                    } catch (error) {
+
+                        window.prompt("Copy your challenge code:", code);
+
+                    }
+
+                };
+
+
             // Copy invitation link
 
             document.getElementById('copyLinkBtn').onclick =
@@ -1155,26 +1286,6 @@ document.getElementById('createInviteBtn').addEventListener(
                         );
 
                     }
-
-                };
-
-
-            // WhatsApp sharing
-
-            document.getElementById('whatsappShareBtn').onclick =
-                () => {
-
-                    const message = encodeURIComponent(
-                        `I challenge you to Button Panic! 🚨\n\n` +
-                        `Challenge Code: ${code}\n\n` +
-                        `Play here: ${shareUrl}`
-                    );
-
-
-                    window.open(
-                        `https://api.whatsapp.com/send?text=${message}`,
-                        '_blank'
-                    );
 
                 };
 
@@ -1246,7 +1357,7 @@ document.getElementById('acceptChallengeBtn').addEventListener(
         }
 
 
-        if (!supabase || !currentChallengeId) {
+        if (!supabaseClient || !currentChallengeId) {
 
             alert("Invalid challenge or server connection.");
 
@@ -1270,7 +1381,7 @@ document.getElementById('acceptChallengeBtn').addEventListener(
 
             // Verify that challenge exists
 
-            const { data: challenge, error } = await supabase
+            const { data: challenge, error } = await supabaseClient
 
                 .from('challenges')
 
@@ -1302,7 +1413,7 @@ document.getElementById('acceptChallengeBtn').addEventListener(
 
             // Register Player B
 
-            const { error: joinError } = await supabase
+            const { error: joinError } = await supabaseClient
 
                 .from('challenge_participants')
 
@@ -1372,7 +1483,7 @@ async function submitChallengeResults() {
         "Your turn is done! Waiting for your opponent...";
 
 
-    if (!supabase || !currentChallengeId) {
+    if (!supabaseClient || !currentChallengeId) {
 
         document.getElementById(
             'waitingMessage'
@@ -1388,7 +1499,7 @@ async function submitChallengeResults() {
 
         // Submit player's score
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
 
             .from('challenge_participants')
 
@@ -1458,7 +1569,7 @@ async function checkOpponentResults() {
         try {
 
             const { data: participants, error } =
-                await supabase
+                await supabaseClient
 
                     .from('challenge_participants')
 
