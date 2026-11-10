@@ -4,250 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BUTTON PANIC! 🚨</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        body {
-            background-color: #0b0f19;
-            color: #f3f4f6;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        .game-container {
-            width: 100%;
-            max-width: 440px;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            position: relative;
-        }
-
-        /* Header / Stats */
-        .header {
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 12px 20px;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-        }
-
-        .stat-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .stat-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #9ca3af;
-            font-weight: 700;
-        }
-
-        .stat-value {
-            font-size: 24px;
-            font-weight: 900;
-            color: #38bdf8;
-        }
-
-        .lives-container {
-            display: flex;
-            gap: 6px;
-            font-size: 20px;
-        }
-
-        /* Instruction Card */
-        .instruction-box {
-            width: 100%;
-            min-height: 120px;
-            background: rgba(30, 41, 59, 0.7);
-            border: 2px solid #38bdf8;
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-            text-align: center;
-            position: relative;
-            box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
-        }
-
-        .instruction-text {
-            font-size: 22px;
-            font-weight: 800;
-            color: #ffffff;
-            line-height: 1.3;
-            transition: transform 0.2s;
-        }
-
-        /* Timer Bar */
-        .timer-container {
-            width: 100%;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .timer-bar {
-            height: 100%;
-            width: 100%;
-            background: linear-gradient(90deg, #38bdf8, #ef4444);
-            transform-origin: left;
-            transition: transform 0.1s linear;
-        }
-
-        /* The Panic Button */
-        .button-area {
-            position: relative;
-            margin: 20px 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .panic-btn {
-            width: 200px;
-            height: 200px;
-            border-radius: 50%;
-            border: none;
-            outline: none;
-            cursor: pointer;
-            background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b);
-            box-shadow: 
-                0 15px 25px rgba(0, 0, 0, 0.6),
-                inset 0 4px 8px rgba(255, 255, 255, 0.4),
-                inset 0 -8px 12px rgba(0, 0, 0, 0.5),
-                0 0 30px rgba(239, 68, 68, 0.4);
-            position: relative;
-            transition: transform 0.08s ease, background 0.3s ease, box-shadow 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .panic-btn::after {
-            content: '';
-            position: absolute;
-            top: 10px;
-            left: 20px;
-            width: 160px;
-            height: 80px;
-            border-radius: 50px 50px 0 0;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0));
-            pointer-events: none;
-        }
-
-        .panic-btn:active, .panic-btn.pressed {
-            transform: translateY(6px) scale(0.97);
-            box-shadow: 
-                0 5px 10px rgba(0, 0, 0, 0.8),
-                inset 0 2px 4px rgba(255, 255, 255, 0.2),
-                inset 0 -4px 6px rgba(0, 0, 0, 0.7);
-        }
-
-        .btn-label {
-            font-size: 24px;
-            font-weight: 900;
-            color: #ffffff;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
-            letter-spacing: 2px;
-        }
-
-        /* Color Variants for Instructions */
-        .panic-btn.green {
-            background: radial-gradient(circle at 30% 30%, #22c55e, #15803d);
-            box-shadow: 0 15px 25px rgba(0,0,0,0.6), inset 0 4px 8px rgba(255,255,255,0.4), inset 0 -8px 12px rgba(0,0,0,0.5), 0 0 30px rgba(34, 197, 94, 0.4);
-        }
-
-        .panic-btn.blue {
-            background: radial-gradient(circle at 30% 30%, #3b82f6, #1d4ed8);
-            box-shadow: 0 15px 25px rgba(0,0,0,0.6), inset 0 4px 8px rgba(255,255,255,0.4), inset 0 -8px 12px rgba(0,0,0,0.5), 0 0 30px rgba(59, 130, 246, 0.4);
-        }
-
-        .panic-btn.yellow {
-            background: radial-gradient(circle at 30% 30%, #eab308, #a16207);
-            box-shadow: 0 15px 25px rgba(0,0,0,0.6), inset 0 4px 8px rgba(255,255,255,0.4), inset 0 -8px 12px rgba(0,0,0,0.5), 0 0 30px rgba(234, 179, 8, 0.4);
-        }
-
-        /* Overlay Screens */
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(11, 15, 25, 0.95);
-            backdrop-filter: blur(8px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            z-index: 100;
-            padding: 24px;
-            text-align: center;
-        }
-
-        .overlay h1 {
-            font-size: 42px;
-            font-weight: 900;
-            color: #ef4444;
-            text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
-            letter-spacing: 2px;
-        }
-
-        .start-btn {
-            padding: 16px 48px;
-            font-size: 22px;
-            font-weight: 800;
-            color: #0b0f19;
-            background: #38bdf8;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
-            transition: transform 0.2s, background 0.2s;
-        }
-
-        .start-btn:hover {
-            transform: scale(1.05);
-            background: #7dd3fc;
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        /* Shake Effect */
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-8px); }
-            75% { transform: translateX(8px); }
-        }
-
-        .shake {
-            animation: shake 0.3s ease-in-out;
-        }
-    </style>
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS Client library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -268,6 +28,9 @@
             </div>
         </div>
 
+        <!-- Mode Badge -->
+        <div id="modeBadge" class="mode-badge">SOLO MODE</div>
+
         <!-- Instruction Screen -->
         <div id="instructionBox" class="instruction-box">
             <div id="instruction" class="instruction-text">GET READY!</div>
@@ -284,6 +47,12 @@
                 <span id="btnLabel" class="btn-label">PRESS</span>
             </button>
         </div>
+
+        <!-- Visitor Counter Badge -->
+        <div class="visitor-counter">
+            <span>Views: </span>
+            <img src="https://counter11.optistats.ovh/lacp.php?sc=button-panic-game" alt="visitor counter" border="0"/>
+        </div>
     </div>
 
     <!-- Start Overlay -->
@@ -292,7 +61,8 @@
         <p style="color: #9ca3af; max-width: 300px; line-height: 1.5;">
             Follow instructions carefully. <br>Don't fall for the tricks! 🧠⚡
         </p>
-        <button id="startBtn" class="start-btn">START GAME</button>
+        <button id="startBtn" class="start-btn">START SOLO GAME</button>
+        <button id="challengeBtn" class="start-btn secondary-btn">⚔️ CHALLENGE A FRIEND</button>
     </div>
 
     <!-- Game Over Overlay -->
@@ -305,262 +75,68 @@
         <button id="restartBtn" class="start-btn">TRY AGAIN</button>
     </div>
 
-    <script>
-        // Web Audio API Sound Effects Generator
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playSound(type) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            const now = audioCtx.currentTime;
+    <!-- Challenge Modal -->
+    <div id="challengeModal" class="overlay hidden">
+        <div class="modal-card">
+            <h2 id="modalTitle">⚔️ Challenge a Friend</h2>
 
-            if (type === 'tap') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(300, now);
-                osc.frequency.exponentialRampToValueAtTime(150, now + 0.08);
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
-                osc.start(now);
-                osc.stop(now + 0.08);
-            } else if (type === 'success') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, now); // C5
-                osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
-                gain.gain.setValueAtTime(0.2, now);
-                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
-                osc.start(now);
-                osc.stop(now + 0.2);
-            } else if (type === 'fail') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(180, now);
-                osc.frequency.linearRampToValueAtTime(80, now + 0.3);
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
-                osc.start(now);
-                osc.stop(now + 0.3);
-            }
-        }
+            <!-- Step 1: Create Challenge -->
+            <div id="stepCreate" class="modal-step">
+                <p>Enter your nickname to create a challenge:</p>
+                <input type="text" id="playerNickname" placeholder="Your Nickname" maxlength="15">
+                <button id="createInviteBtn" class="start-btn">Create Invite Link</button>
+            </div>
 
-        // Game State Variables
-        let score = 0;
-        let lives = 3;
-        let highScore = localStorage.getItem('buttonPanicBest') || 0;
-        let currentInstruction = null;
-        let timer = null;
-        let roundTime = 3000;
-        let pressCount = 0;
-        let holdTimer = null;
-        let isHolding = false;
-        let roundResolved = false;
+            <!-- Step 2: Share Challenge Link -->
+            <div id="stepShare" class="modal-step hidden">
+                <p>Share this invitation link with your opponent:</p>
+                <div class="code-box">
+                    <span id="challengeCodeDisplay">BP-0000</span>
+                </div>
+                <div class="button-group">
+                    <button id="copyLinkBtn" class="action-btn secondary">📋 Copy Link</button>
+                    <button id="whatsappShareBtn" class="action-btn whatsapp">💬 WhatsApp</button>
+                </div>
+                <button id="startPlayerAGame" class="start-btn">Play My Turn Now</button>
+            </div>
 
-        // UI Elements
-        const scoreEl = document.getElementById('score');
-        const livesEl = document.getElementById('lives');
-        const highScoreEl = document.getElementById('highScore');
-        const instructionEl = document.getElementById('instruction');
-        const timerBar = document.getElementById('timerBar');
-        const panicBtn = document.getElementById('panicBtn');
-        const btnLabel = document.getElementById('btnLabel');
-        const startOverlay = document.getElementById('startOverlay');
-        const gameOverOverlay = document.getElementById('gameOverOverlay');
-        const finalScoreEl = document.getElementById('finalScore');
-        const tauntText = document.getElementById('tauntText');
+            <!-- Step 3: Join Challenge (Player B) -->
+            <div id="stepJoin" class="modal-step hidden">
+                <p>You’ve been challenged to Button Panic!</p>
+                <input type="text" id="joinNickname" placeholder="Your Nickname" maxlength="15">
+                <button id="acceptChallengeBtn" class="start-btn">Accept & Start!</button>
+            </div>
 
-        highScoreEl.textContent = highScore;
+            <!-- Step 4: Waiting Screen -->
+            <div id="stepWaiting" class="modal-step hidden">
+                <div class="spinner"></div>
+                <p id="waitingMessage">Your turn is done! Waiting for opponent to finish…</p>
+            </div>
 
-        // Funny Taunts for Game Over
-        const taunts = [
-            "Your fingers moved faster than your brain! 😂",
-            "The button tricked you! 🧠💥",
-            "Patience is a virtue... which you lack! ⏳",
-            "It literally said DON'T press it! 🤦‍♂️",
-            "Nice try! Give it another shot."
-        ];
+            <!-- Step 5: Head-to-Head Result Announcement -->
+            <div id="stepResults" class="modal-step hidden">
+                <h1 id="winnerText" class="winner-title">🏆 RESULT</h1>
+                <div class="results-comparison">
+                    <div class="player-card">
+                        <h3 id="p1Name">Player A</h3>
+                        <p>Score: <strong id="p1Score">0</strong></p>
+                        <p>Lives Left: <span id="p1Lives">0</span></p>
+                    </div>
+                    <div class="vs-divider">VS</div>
+                    <div class="player-card">
+                        <h3 id="p2Name">Player B</h3>
+                        <p>Score: <strong id="p2Score">0</strong></p>
+                        <p>Lives Left: <span id="p2Lives">0</span></p>
+                    </div>
+                </div>
+                <button id="rematchBtn" class="start-btn">🔄 Rematch</button>
+            </div>
 
-        // Round Instructions Definitions
-        const instructionsList = [
-            { text: "PRESS IT!", type: "press_single", duration: 2500 },
-            { text: "DON'T PRESS IT!", type: "do_nothing", duration: 2200 },
-            { text: "PRESS TWICE!", type: "press_double", duration: 2500 },
-            { text: "HOLD IT DOWN!", type: "hold", duration: 3000 },
-            { text: "IGNORE THIS: DON'T PRESS!", type: "press_single", duration: 2500 },
-            { text: "TOUCH WHEN GREEN!", type: "color_green", duration: 2800 },
-            { text: "WHATEVER YOU DO, DON'T TOUCH!", type: "do_nothing", duration: 2000 },
-            { text: "QUICK! TAP IT!", type: "press_single", duration: 1800 },
-            { text: "TRIPLE TAP!", type: "press_triple", duration: 2800 }
-        ];
+            <button id="closeModalBtn" class="close-modal-btn">&times;</button>
+        </div>
+    </div>
 
-        // Colors pool
-        const buttonColors = ['red', 'green', 'blue', 'yellow'];
-
-        function setButtonColor(color) {
-            panicBtn.className = 'panic-btn ' + color;
-        }
-
-        function updateLivesDisplay() {
-            livesEl.textContent = '❤️'.repeat(Math.max(0, lives));
-        }
-
-        function startRound() {
-            roundResolved = false;
-            pressCount = 0;
-            isHolding = false;
-
-            // Pick instruction
-            currentInstruction = instructionsList[Math.floor(Math.random() * instructionsList.length)];
-            instructionEl.textContent = currentInstruction.text;
-
-            // Handle color logic
-            if (currentInstruction.type === 'color_green') {
-                const colors = ['red', 'blue', 'yellow', 'green'];
-                const selectedColor = colors[Math.floor(Math.random() * colors.length)];
-                setButtonColor(selectedColor);
-            } else {
-                const randomColor = buttonColors[Math.floor(Math.random() * buttonColors.length)];
-                setButtonColor(randomColor);
-            }
-
-            // Calculate dynamic round time (gets faster with higher score)
-            const speedFactor = Math.max(0.5, 1 - (score * 0.02));
-            roundTime = currentInstruction.duration * speedFactor;
-
-            // Reset and start timer animation
-            timerBar.style.transition = 'none';
-            timerBar.style.transform = 'scaleX(1)';
-            setTimeout(() => {
-                timerBar.style.transition = `transform ${roundTime}ms linear`;
-                timerBar.style.transform = 'scaleX(0)';
-            }, 20);
-
-            clearTimeout(timer);
-            timer = setTimeout(evaluateTimeout, roundTime);
-        }
-
-        function resolveRound(success) {
-            if (roundResolved) return;
-            roundResolved = true;
-            clearTimeout(timer);
-            clearTimeout(holdTimer);
-
-            if (success) {
-                playSound('success');
-                score += 10;
-                scoreEl.textContent = score;
-                if (score > highScore) {
-                    highScore = score;
-                    highScoreEl.textContent = highScore;
-                    localStorage.setItem('buttonPanicBest', highScore);
-                }
-                startRound();
-            } else {
-                playSound('fail');
-                lives--;
-                updateLivesDisplay();
-                document.body.classList.add('shake');
-                setTimeout(() => document.body.classList.remove('shake'), 300);
-
-                if (lives <= 0) {
-                    endGame();
-                } else {
-                    startRound();
-                }
-            }
-        }
-
-        function evaluateTimeout() {
-            if (roundResolved) return;
-
-            if (currentInstruction.type === 'do_nothing') {
-                resolveRound(true);
-            } else if (currentInstruction.type === 'color_green') {
-                const isGreen = panicBtn.classList.contains('green');
-                resolveRound(!isGreen); // Success if not green and didn't press
-            } else {
-                resolveRound(false); // Failed to take required action in time
-            }
-        }
-
-        // Button Click / Tap Event Handlers
-        function handleBtnPress() {
-            if (roundResolved) return;
-            playSound('tap');
-            pressCount++;
-
-            if (currentInstruction.type === 'press_single') {
-                resolveRound(true);
-            } else if (currentInstruction.type === 'do_nothing') {
-                resolveRound(false);
-            } else if (currentInstruction.type === 'color_green') {
-                const isGreen = panicBtn.classList.contains('green');
-                resolveRound(isGreen);
-            } else if (currentInstruction.type === 'press_double') {
-                if (pressCount === 2) resolveRound(true);
-            } else if (currentInstruction.type === 'press_triple') {
-                if (pressCount === 3) resolveRound(true);
-            }
-        }
-
-        // Mouse & Touch Listeners for Hold Action
-        panicBtn.addEventListener('mousedown', () => {
-            if (roundResolved) return;
-            panicBtn.classList.add('pressed');
-            if (currentInstruction && currentInstruction.type === 'hold') {
-                holdTimer = setTimeout(() => {
-                    isHolding = true;
-                    resolveRound(true);
-                }, 1000); // Must hold for 1 second
-            }
-            handleBtnPress();
-        });
-
-        panicBtn.addEventListener('mouseup', () => {
-            panicBtn.classList.remove('pressed');
-            clearTimeout(holdTimer);
-        });
-
-        panicBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (roundResolved) return;
-            panicBtn.classList.add('pressed');
-            if (currentInstruction && currentInstruction.type === 'hold') {
-                holdTimer = setTimeout(() => {
-                    isHolding = true;
-                    resolveRound(true);
-                }, 1000);
-            }
-            handleBtnPress();
-        });
-
-        panicBtn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            panicBtn.classList.remove('pressed');
-            clearTimeout(holdTimer);
-        });
-
-        // Start & Reset Game Functions
-        function startGame() {
-            score = 0;
-            lives = 3;
-            scoreEl.textContent = '0';
-            updateLivesDisplay();
-            startOverlay.classList.add('hidden');
-            gameOverOverlay.classList.add('hidden');
-            startRound();
-        }
-
-        function endGame() {
-            finalScoreEl.textContent = score;
-            tauntText.textContent = taunts[Math.floor(Math.random() * taunts.length)];
-            gameOverOverlay.classList.remove('hidden');
-        }
-
-        document.getElementById('startBtn').addEventListener('click', startGame);
-        document.getElementById('restartBtn').addEventListener('click', startGame);
-    </script>
+    <!-- External JavaScript Engine -->
+    <script src="script.js"></script>
 </body>
 </html>
