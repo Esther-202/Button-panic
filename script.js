@@ -358,6 +358,117 @@ const buttonColors = [
 
 
 // ======================================================
+// 7b. DIFFICULTY LEVELS
+// MEDIUM is the original game, completely unchanged.
+// ======================================================
+
+const DIFFICULTIES = {
+
+    easy:   { label: 'EASY',   timeFactor: 1.4, points: 5,  color: '#22c55e' },
+
+    medium: { label: 'MEDIUM', timeFactor: 1,   points: 10, color: '#38bdf8' },
+
+    hard:   { label: 'HARD',   timeFactor: 0.7, points: 20, color: '#ef4444' }
+
+};
+
+// Extra rounds that only appear on HARD
+const hardExtraInstructions = [
+
+    { text: "PRESS 4 TIMES!", type: "press_n", count: 4, duration: 2800 },
+
+    { text: "PRESS 5 TIMES!", type: "press_n", count: 5, duration: 3000 },
+
+    { text: "NEVER TOUCH IT!", type: "do_nothing", duration: 1800 }
+
+];
+
+let difficultyKey = 'medium';
+
+let roundsWon = 0;
+
+let gameStartTime = 0;
+
+let clientGameId = null;
+
+
+// Friend challenges always use MEDIUM so both players get identical rounds
+function activeDifficultyKey() {
+
+    return currentChallengeId ? 'medium' : difficultyKey;
+
+}
+
+function activeDifficulty() {
+
+    return DIFFICULTIES[activeDifficultyKey()];
+
+}
+
+function getInstructionPool() {
+
+    const key = activeDifficultyKey();
+
+    if (key === 'easy') {
+
+        return instructionsList.filter(item =>
+            ['press_single', 'do_nothing', 'press_double', 'hold'].includes(item.type) &&
+            !/^(IGNORE|WHATEVER)/.test(item.text)
+        );
+
+    }
+
+    if (key === 'hard') {
+
+        return instructionsList.concat(hardExtraInstructions);
+
+    }
+
+    return instructionsList;
+
+}
+
+function bestScoreKey() {
+
+    const key = activeDifficultyKey();
+
+    return key === 'medium' ? 'buttonPanicBest' : 'buttonPanicBest_' + key;
+
+}
+
+function setDifficulty(key) {
+
+    if (!DIFFICULTIES[key]) return;
+
+    difficultyKey = key;
+
+    try {
+        localStorage.setItem('bpDifficulty', key);
+    } catch (error) {}
+
+    try {
+        highScore = Number(localStorage.getItem(bestScoreKey()) || 0);
+    } catch (error) {
+        highScore = 0;
+    }
+
+    highScoreEl.textContent = highScore;
+
+}
+
+function makeGameId() {
+
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+
+}
+
+
+// ======================================================
 // 8. BUTTON COLOR MANAGEMENT
 // ======================================================
 
@@ -453,11 +564,13 @@ function startRound() {
 
     // Select instruction
 
+    const pool = getInstructionPool();
+
     const index = Math.floor(
-        rng() * instructionsList.length
+        rng() * pool.length
     );
 
-    currentInstruction = instructionsList[index];
+    currentInstruction = pool[index];
 
     instructionEl.textContent =
         currentInstruction.text;
@@ -495,11 +608,13 @@ function startRound() {
 
     const speedFactor = Math.max(
         0.5,
-        1 - (score * 0.02)
+        1 - ((roundsWon * 10) * 0.02)
     );
 
     roundTime =
-        currentInstruction.duration * speedFactor;
+        currentInstruction.duration *
+        speedFactor *
+        activeDifficulty().timeFactor;
 
 
     // Start timer
@@ -526,7 +641,9 @@ function resolveRound(success) {
 
         playSound('success');
 
-        score += 10;
+        score += activeDifficulty().points;
+
+        roundsWon++;
 
         scoreEl.textContent = score;
 
@@ -542,7 +659,7 @@ function resolveRound(success) {
             try {
 
                 localStorage.setItem(
-                    'buttonPanicBest',
+                    bestScoreKey(),
                     highScore
                 );
 
@@ -686,6 +803,17 @@ function handleBtnPress() {
             break;
 
 
+        case 'press_n':
+
+            if (pressCount === currentInstruction.count) {
+
+                resolveRound(true);
+
+            }
+
+            break;
+
+
         case 'hold':
 
             // Holding is handled separately.
@@ -815,6 +943,22 @@ function startGame() {
 
     gameStarted = true;
 
+    roundsWon = 0;
+
+    gameStartTime = Date.now();
+
+    clientGameId = makeGameId();
+
+    // Show the selected difficulty during solo play
+    if (!currentChallengeId) {
+
+        modeBadge.textContent =
+            'SOLO MODE · ' + activeDifficulty().label;
+
+        modeBadge.style.color = activeDifficulty().color;
+
+    }
+
 
     scoreEl.textContent = '0';
 
@@ -859,6 +1003,31 @@ function endGame() {
     stopRoundTimer();
 
     panicBtn.classList.remove('pressed');
+
+
+    // Tell the accounts system the game is over (optional add-on)
+    try {
+
+        if (window.BPFeatures && window.BPFeatures.onGameEnd) {
+
+            window.BPFeatures.onGameEnd({
+                clientGameId: clientGameId,
+                difficulty: activeDifficultyKey(),
+                mode: currentChallengeId ? 'challenge' : 'solo',
+                roundsWon: roundsWon,
+                score: score,
+                livesLeft: Math.max(0, lives),
+                durationMs: Date.now() - gameStartTime,
+                challengeId: currentChallengeId
+            });
+
+        }
+
+    } catch (error) {
+
+        console.warn("Features hook failed:", error);
+
+    }
 
 
     if (currentChallengeId) {
@@ -1693,6 +1862,24 @@ function displayWinnerScreen(participants) {
     showModalStep(stepResults);
 
 
+    try {
+
+        if (window.BPFeatures && window.BPFeatures.onChallengeFinished) {
+
+            window.BPFeatures.onChallengeFinished(
+                currentChallengeId,
+                currentPlayerSlot
+            );
+
+        }
+
+    } catch (error) {
+
+        console.warn("Features hook failed:", error);
+
+    }
+
+
     // Return to solo menu
 
     document.getElementById('rematchBtn').onclick =
@@ -1714,3 +1901,593 @@ readChallengeLink();
 
 
 console.log("🚨 BUTTON PANIC GAME ENGINE LOADED SUCCESSFULLY!");
+
+
+// ======================================================
+// BUTTON PANIC - PHASE 1 FEATURES
+// Accounts, player profiles, difficulty menu, leaderboards
+// This file only ADDS to the game. It never changes how
+// the existing game rounds work.
+// ======================================================
+
+(function () {
+
+    'use strict';
+
+    const sb = (typeof supabaseClient !== 'undefined') ? supabaseClient : null;
+
+    const AVATARS = ['🙂', '😎', '🤖', '👾', '🦊', '🐼', '🐯', '🦄', '🐸', '🔥', '⚡', '👑'];
+
+    const DIFF_INFO = {
+        easy: 'Simpler rounds · more time · 5 points per round',
+        medium: 'The classic game · 10 points per round',
+        hard: 'Trickier rounds · less time · 20 points per round'
+    };
+
+    // Private address pattern used behind the scenes (players only ever type a username)
+    // The domain must really exist (Supabase checks). No emails are ever sent
+    // because "Confirm email" is turned off in Supabase.
+    const PLAYER_EMAIL_DOMAIN = 'gmail.com';
+
+    // Turns a username into a realistic-looking address: only a-f and 0-9, 6-30 characters,
+    // so it passes strict email checks (the same username always gives the same address)
+    function hiddenEmail(username) {
+        const bytes = new TextEncoder().encode(username.toLowerCase());
+        const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        return hex + '@' + PLAYER_EMAIL_DOMAIN;
+    }
+
+    const state = { user: null, profile: null };
+
+    let lastSubmit = null;   // { clientGameId, promise }
+
+
+    // ---------- tiny DOM helper (uses textContent, so names can never inject HTML) ----------
+
+    function h(tag, props, ...kids) {
+
+        const node = document.createElement(tag);
+
+        if (props) {
+            Object.keys(props).forEach(k => {
+                if (k === 'class') node.className = props[k];
+                else if (k === 'text') node.textContent = props[k];
+                else if (k.startsWith('on')) node.addEventListener(k.slice(2), props[k]);
+                else node.setAttribute(k, props[k]);
+            });
+        }
+
+        kids.flat().forEach(c => {
+            if (c === null || c === undefined) return;
+            node.append(c.nodeType ? c : document.createTextNode(String(c)));
+        });
+
+        return node;
+    }
+
+    function toast(text) {
+        const t = h('div', { class: 'bp-toast', text });
+        document.body.append(t);
+        setTimeout(() => t.remove(), 2600);
+    }
+
+    function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+
+    // ---------- modal ----------
+
+    const modal = h('div', { class: 'overlay hidden', id: 'bpModal' });
+    document.body.append(modal);
+
+    function closeModal() { modal.classList.add('hidden'); }
+
+    function openModal(title, content) {
+        modal.replaceChildren(
+            h('div', { class: 'modal-card bp-card' },
+                h('button', { class: 'close-modal-btn', 'aria-label': 'Close', text: '×', onclick: closeModal }),
+                h('h2', { text: title }),
+                content
+            )
+        );
+        modal.classList.remove('hidden');
+    }
+
+    function avatarPicker(current, onPick) {
+        const wrap = h('div', { class: 'bp-avatars' });
+        AVATARS.forEach(a => {
+            const b = h('button', {
+                class: 'bp-av-btn' + (a === current ? ' active' : ''),
+                text: a,
+                type: 'button',
+                onclick: () => {
+                    wrap.querySelectorAll('.bp-av-btn').forEach(x => x.classList.remove('active'));
+                    b.classList.add('active');
+                    onPick(a);
+                }
+            });
+            wrap.append(b);
+        });
+        return wrap;
+    }
+
+
+    // ---------- account chip ----------
+
+    const chip = h('div', { class: 'bp-chip', id: 'bpChip', onclick: () => state.user ? openProfile() : openAuth('login') });
+
+    function updateChip() {
+        chip.replaceChildren();
+        if (state.user && state.profile) {
+            chip.append(h('span', { class: 'bp-chip-av', text: state.profile.avatar }), h('span', { text: state.profile.username }));
+        } else {
+            chip.append(h('span', { class: 'bp-chip-av', text: '👤' }), h('span', { text: 'Guest · Sign in' }));
+        }
+    }
+
+
+    // ---------- profile loading ----------
+
+    async function refreshProfile() {
+
+        if (!sb || !state.user) {
+            state.profile = null;
+            updateChip();
+            return null;
+        }
+
+        try {
+
+            let { data } = await sb.from('profiles').select('*').eq('id', state.user.id).maybeSingle();
+
+            if (!data) {
+                await sb.rpc('ensure_my_profile');
+                ({ data } = await sb.from('profiles').select('*').eq('id', state.user.id).maybeSingle());
+            }
+
+            state.profile = data || null;
+
+        } catch (error) {
+            console.warn('Could not load profile:', error);
+        }
+
+        updateChip();
+
+        return state.profile;
+    }
+
+
+    // ---------- sign up / log in ----------
+
+    function openAuth(startMode) {
+
+        if (!sb) {
+            openModal('Account', h('p', { class: 'bp-sub', text: 'Cannot reach the game server right now. Please try again later.' }));
+            return;
+        }
+
+        let signup = startMode === 'signup';
+        let avatar = AVATARS[0];
+
+        const pass = h('input', { type: 'password', placeholder: 'Password (min 6 characters)', autocomplete: 'current-password' });
+        const uname = h('input', { type: 'text', placeholder: 'Username (3-15 letters, numbers, _)', maxlength: '15', autocomplete: 'username', autocapitalize: 'none' });
+        const msg = h('div', { class: 'bp-msg' });
+        const submit = h('button', { class: 'start-btn', type: 'button' });
+        const toggle = h('button', { class: 'bp-link', type: 'button' });
+
+        const signupOnly = h('div', { class: 'bp-col', style: 'width:100%;margin-top:0' },
+            h('div', { class: 'bp-sub', text: 'Pick an avatar' }),
+            avatarPicker(avatar, a => { avatar = a; })
+        );
+
+        function render() {
+            signupOnly.classList.toggle('hidden', !signup);
+            submit.textContent = signup ? 'Create Account' : 'Log In';
+            toggle.textContent = signup ? 'Already have an account? Log in' : 'New here? Create an account';
+            pass.setAttribute('autocomplete', signup ? 'new-password' : 'current-password');
+            msg.textContent = '';
+            msg.className = 'bp-msg';
+        }
+
+        toggle.onclick = () => { signup = !signup; render(); };
+
+        submit.onclick = async () => {
+
+            const pw = pass.value;
+            const un = uname.value.trim();
+
+            msg.className = 'bp-msg';
+
+            if (!un || !pw) { msg.textContent = 'Please enter your username and password.'; return; }
+            if (!/^[A-Za-z0-9_]{3,15}$/.test(un)) { msg.textContent = 'Username must be 3-15 letters, numbers or _'; return; }
+            if (signup && pw.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; return; }
+
+            // Players never see this: Supabase needs an email, so we build a private one from the username
+            const em = hiddenEmail(un);
+
+            submit.disabled = true;
+            const label = submit.textContent;
+            submit.textContent = 'Please wait...';
+
+            try {
+
+                if (signup) {
+
+                    const { data: free, error: e1 } = await sb.rpc('username_available', { p_username: un });
+                    if (e1) throw e1;
+                    if (!free) throw new Error('That username is already taken.');
+
+                    const { data, error } = await sb.auth.signUp({
+                        email: em,
+                        password: pw,
+                        options: { data: { username: un, avatar: avatar } }
+                    });
+                    if (error) throw error;
+
+                    if (!data.session) {
+                        signup = false;
+                        render();
+                        msg.className = 'bp-msg ok';
+                        msg.textContent = 'Account created, but the server still wants email confirmation. Turn off "Confirm email" in Supabase (Authentication > Providers > Email), then log in.';
+                        return;
+                    }
+
+                    closeModal();
+                    toast('Welcome, ' + un + '! 🎉');
+
+                } else {
+
+                    const { error } = await sb.auth.signInWithPassword({ email: em, password: pw });
+                    if (error) throw error;
+
+                    closeModal();
+                    toast('Logged in ✅');
+                }
+
+            } catch (error) {
+                const m = error.message || '';
+                if (/invalid login/i.test(m)) msg.textContent = 'Wrong username or password.';
+                else if (/already (registered|exists)/i.test(m)) msg.textContent = 'That username is already taken.';
+                else msg.textContent = m || 'Something went wrong. Please try again.';
+            } finally {
+                submit.disabled = false;
+                if (submit.textContent === 'Please wait...') submit.textContent = label;
+            }
+        };
+
+        openModal('Player Account',
+            h('div', { class: 'bp-col' },
+                uname, pass, signupOnly, msg, submit, toggle,
+                h('div', { class: 'bp-sub', text: 'No email needed! Just pick a username and password. Remember your password, it cannot be reset.' }),
+                h('div', { class: 'bp-sub', text: 'You can still play without an account. An account saves your scores, stats and ranking.' })
+            )
+        );
+
+        render();
+    }
+
+
+    // ---------- profile ----------
+
+    async function openProfile() {
+
+        if (!state.user) { openAuth('login'); return; }
+
+        const body = h('div', { class: 'bp-col' }, h('div', { class: 'bp-sub', text: 'Loading…' }));
+        openModal('My Profile', body);
+
+        await refreshProfile();
+
+        const p = state.profile;
+
+        if (!p) {
+            body.replaceChildren(h('div', { class: 'bp-msg', text: 'Could not load your profile.' }));
+            return;
+        }
+
+        let diffRows = [];
+        let history = [];
+
+        try {
+            const d = await sb.rpc('get_my_difficulty_stats');
+            diffRows = d.data || [];
+            const hRes = await sb.from('game_results')
+                .select('created_at, difficulty, mode, rounds_won, points, won')
+                .order('created_at', { ascending: false })
+                .limit(15);
+            history = hRes.data || [];
+        } catch (error) {
+            console.warn('Could not load stats:', error);
+        }
+
+        const rate = p.games_played ? Math.round(1000 * p.games_won / p.games_played) / 10 : 0;
+
+        const avatars = avatarPicker(p.avatar, async a => {
+            try {
+                const { error } = await sb.rpc('set_avatar', { p_avatar: a });
+                if (error) throw error;
+                await refreshProfile();
+                bigAv.textContent = a;
+            } catch (e) { toast('Could not change avatar'); }
+        });
+
+        const bigAv = h('div', { class: 'bp-big-av', text: p.avatar });
+
+        const byDiff = {};
+        diffRows.forEach(r => { byDiff[r.difficulty] = r; });
+
+        const table = h('table', { class: 'bp-table' },
+            h('tr', null, h('th', { text: 'Level' }), h('th', { text: 'Games' }), h('th', { text: 'Best' }), h('th', { text: 'Wins' }), h('th', { text: 'Points' })),
+            ['easy', 'medium', 'hard'].map(k => {
+                const r = byDiff[k];
+                return h('tr', null,
+                    h('td', { text: cap(k) }),
+                    h('td', { text: r ? r.games : 0 }),
+                    h('td', { text: r ? r.best_rounds : 0 }),
+                    h('td', { text: r ? r.wins : 0 }),
+                    h('td', { text: r ? r.total_points : 0 })
+                );
+            })
+        );
+
+        const hist = h('div', { class: 'bp-hist' });
+        if (history.length === 0) {
+            hist.append(h('div', { text: 'No games saved yet. Play a game while signed in!' }));
+        } else {
+            history.forEach(g => {
+                const when = new Date(g.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                hist.append(h('div', {
+                    text: `${g.mode === 'challenge' ? '⚔️' : '🎮'} ${when} · ${g.difficulty.toUpperCase()} · ${g.rounds_won} rounds · +${g.points} pts ${g.won === true ? '🏆' : ''}`
+                }));
+            });
+        }
+
+        body.replaceChildren(
+            bigAv,
+            h('div', { class: 'bp-username', text: p.username }),
+            h('div', { class: 'bp-stats' },
+                h('div', { class: 'bp-stat' }, h('b', { text: p.total_points }), h('span', { text: 'Total points' })),
+                h('div', { class: 'bp-stat' }, h('b', { text: p.games_played }), h('span', { text: 'Games played' })),
+                h('div', { class: 'bp-stat' }, h('b', { text: p.games_won }), h('span', { text: 'Games won' })),
+                h('div', { class: 'bp-stat' }, h('b', { text: rate + '%' }), h('span', { text: 'Win rate' }))
+            ),
+            h('div', { class: 'bp-sub', text: 'Performance by difficulty' }),
+            table,
+            h('div', { class: 'bp-sub', text: 'Change avatar' }),
+            avatars,
+            h('div', { class: 'bp-sub', text: 'Recent games' }),
+            hist,
+            h('div', { class: 'bp-sub', text: 'A solo win = surviving 10 or more rounds.' }),
+            h('button', {
+                class: 'start-btn secondary-btn',
+                text: 'Log Out',
+                onclick: async () => { await sb.auth.signOut(); closeModal(); toast('Logged out'); }
+            })
+        );
+    }
+
+
+    // ---------- leaderboard ----------
+
+    function openLeaderboard() {
+
+        if (!sb) {
+            openModal('Leaderboard', h('p', { class: 'bp-sub', text: 'Cannot reach the game server right now. Please try again later.' }));
+            return;
+        }
+
+        let period = 'global';
+
+        const list = h('div', { class: 'bp-lb' });
+
+        const tabs = ['global', 'weekly', 'monthly'].map(p =>
+            h('button', {
+                class: 'bp-tab', 'data-p': p, text: cap(p), type: 'button',
+                onclick: () => { period = p; load(); }
+            })
+        );
+
+        async function load() {
+
+            tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-p') === period));
+            list.replaceChildren(h('div', { class: 'bp-sub', text: 'Loading…' }));
+
+            try {
+
+                const { data, error } = await sb.rpc('get_leaderboard', { p_period: period, p_limit: 50 });
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    list.replaceChildren(h('div', { class: 'bp-sub', text: period === 'global' ? 'No ranked players yet. Be the first!' : 'No games this ' + (period === 'weekly' ? 'week' : 'month') + ' yet.' }));
+                    return;
+                }
+
+                const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+                list.replaceChildren(...data.map(r =>
+                    h('div', { class: 'bp-row' + (state.user && r.player_id === state.user.id ? ' me' : '') },
+                        h('span', { class: 'bp-rank', text: medals[r.player_rank] || ('#' + r.player_rank) }),
+                        h('span', { class: 'bp-av', text: r.player_avatar }),
+                        h('div', null,
+                            h('span', { class: 'bp-name', text: r.player_name }),
+                            h('span', { class: 'bp-meta', text: `${r.games} played · ${r.wins} won · ${r.win_rate}%` })
+                        ),
+                        h('span', { class: 'bp-pts', text: r.points + ' pts' })
+                    )
+                ));
+
+            } catch (error) {
+                list.replaceChildren(h('div', { class: 'bp-msg', text: 'Could not load the leaderboard: ' + (error.message || 'try again') }));
+            }
+        }
+
+        openModal('🏆 Leaderboard',
+            h('div', { class: 'bp-col' },
+                h('div', { class: 'bp-tabs' }, tabs),
+                list,
+                h('div', { class: 'bp-rules', text: 'Ranking rules: points = rounds survived × difficulty (Easy 5, Medium 10, Hard 20). Scores are checked by the server, each game counts once, and only signed-in players are ranked. Weekly starts Monday, monthly on the 1st (UTC).' })
+            )
+        );
+
+        load();
+    }
+
+
+    // ---------- game hooks (called from script.js) ----------
+
+    function setResultLine(text) {
+        const line = document.getElementById('bpResultLine');
+        if (line) line.textContent = text;
+    }
+
+    async function submitResult(info) {
+
+        const { data, error } = await sb.rpc('submit_game_result', {
+            p_client_game_id: info.clientGameId,
+            p_difficulty: info.difficulty,
+            p_mode: info.mode,
+            p_rounds_won: info.roundsWon,
+            p_lives_left: info.livesLeft,
+            p_duration_ms: info.durationMs,
+            p_challenge_id: info.mode === 'challenge' ? info.challengeId : null
+        });
+
+        if (error) throw error;
+
+        return data;
+    }
+
+    window.BPFeatures = {
+
+        onGameEnd: function (info) {
+
+            setResultLine('');
+
+            if (!sb || !state.user) {
+                if (info.mode === 'solo') setResultLine('🔐 Sign in from the menu to save your score and get ranked.');
+                return;
+            }
+
+            setResultLine('Saving your score…');
+
+            const promise = submitResult(info)
+                .then(data => {
+                    const label = info.difficulty.toUpperCase();
+                    setResultLine(data.duplicate ? 'Score already saved ✅' : `+${data.points} points saved ✅ (${label})`);
+                    refreshProfile();
+                    return data;
+                })
+                .catch(error => {
+                    setResultLine('Could not save score: ' + (error.message || 'try again'));
+                    return null;
+                });
+
+            lastSubmit = { clientGameId: info.clientGameId, promise };
+        },
+
+        onChallengeFinished: async function (challengeId, slot) {
+
+            if (!sb || !state.user || !lastSubmit) return;
+
+            try {
+                await lastSubmit.promise;
+                await sb.rpc('mark_challenge_win', { p_client_game_id: lastSubmit.clientGameId, p_slot: slot });
+                refreshProfile();
+            } catch (error) {
+                console.warn('Could not record challenge result:', error);
+            }
+        }
+    };
+
+
+    // ---------- build the extra menu items ----------
+
+    function buildMenu() {
+
+        const startOverlay = document.getElementById('startOverlay');
+        const startBtn = document.getElementById('startBtn');
+        const joinBtn = document.getElementById('joinCodeBtn') || document.getElementById('challengeBtn');
+        const gameOver = document.getElementById('gameOverOverlay');
+        const restartBtn = document.getElementById('restartBtn');
+
+        if (!startOverlay || !startBtn) return;
+
+        // Account chip at the top
+        startOverlay.prepend(chip);
+
+        // Difficulty selector above the START button
+        let current = 'medium';
+        try {
+            const saved = localStorage.getItem('bpDifficulty');
+            if (['easy', 'medium', 'hard'].includes(saved)) current = saved;
+        } catch (e) {}
+
+        const desc = h('div', { class: 'bp-diff-desc' });
+        const note = h('div', { class: 'bp-sub', text: 'Friend challenges always use Medium.' });
+
+        const buttons = ['easy', 'medium', 'hard'].map(k =>
+            h('button', {
+                class: 'bp-diff-btn bp-' + k, 'data-key': k, text: k.toUpperCase(), type: 'button',
+                onclick: () => choose(k)
+            })
+        );
+
+        function choose(k) {
+            if (typeof setDifficulty === 'function') setDifficulty(k);
+            buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-key') === k));
+            desc.textContent = DIFF_INFO[k];
+        }
+
+        startBtn.before(h('div', { class: 'bp-diff' },
+            h('div', { class: 'bp-diff-title', text: 'DIFFICULTY' }),
+            h('div', { class: 'bp-diff-row' }, buttons),
+            desc,
+            note
+        ));
+
+        choose(current);
+
+        // Profile + Leaderboard buttons
+        (joinBtn || startBtn).after(h('div', { class: 'bp-nav-row' },
+            h('button', { class: 'bp-nav-btn', type: 'button', text: '👤 PROFILE', onclick: () => state.user ? openProfile() : openAuth('login') }),
+            h('button', { class: 'bp-nav-btn', type: 'button', text: '🏆 RANKS', onclick: openLeaderboard })
+        ));
+
+        // Game over screen: result line + back to menu
+        if (gameOver && restartBtn) {
+            restartBtn.before(h('div', { class: 'bp-result', id: 'bpResultLine' }));
+            restartBtn.after(h('button', {
+                class: 'start-btn secondary-btn', type: 'button', text: '🏠 MAIN MENU',
+                onclick: () => {
+                    gameOver.classList.add('hidden');
+                    startOverlay.classList.remove('hidden');
+                }
+            }));
+        }
+
+        updateChip();
+    }
+
+
+    // ---------- start ----------
+
+    buildMenu();
+
+    if (sb) {
+
+        sb.auth.onAuthStateChange((event, session) => {
+            state.user = session ? session.user : null;
+            // Never call Supabase directly inside this callback
+            setTimeout(refreshProfile, 0);
+        });
+
+        sb.auth.getSession().then(({ data }) => {
+            if (data && data.session && !state.user) {
+                state.user = data.session.user;
+                refreshProfile();
+            }
+        }).catch(() => {});
+    }
+
+    console.log('✅ Button Panic Phase 1 features loaded');
+
+})();
