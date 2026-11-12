@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUTTON PANIC! 🚨</title>
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS Client library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div class="game-container">
+        <!-- Stats Header -->
+        <div class="header">
+            <div class="stat-box">
+                <span class="stat-label">Score</span>
+                <span id="score" class="stat-value">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Lives</span>
+                <div id="lives" class="lives-container">❤️❤️❤️</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Best</span>
+                <span id="highScore" class="stat-value" style="color: #eab308;">0</span>
+            </div>
+        </div>
+
+        <!-- Mode Badge -->
+        <div id="modeBadge" class="mode-badge">SOLO MODE</div>
+
+        <!-- Instruction Screen -->
+        <div id="instructionBox" class="instruction-box">
+            <div id="instruction" class="instruction-text">GET READY!</div>
+        </div>
+
+        <!-- Countdown Bar -->
+        <div class="timer-container">
+            <div id="timerBar" class="timer-bar"></div>
+        </div>
+
+        <!-- Big Panic Button -->
+        <div class="button-area">
+            <button id="panicBtn" class="panic-btn">
+                <span id="btnLabel" class="btn-label">PRESS</span>
+            </button>
+        </div>
+
+        <!-- Visitor Counter Badge -->
+        <div class="visitor-counter">
+            <span>Views: </span>
+            <img src="https://counter11.optistats.ovh/lacp.php?sc=button-panic-game" alt="visitor counter" border="0"/>
+        </div>
+    </div>
+
+    <!-- Start Overlay -->
+    <div id="startOverlay" class="overlay">
+        <h1>BUTTON PANIC!</h1>
+        <p style="color: #9ca3af; max-width: 300px; line-height: 1.5;">
+            Follow instructions carefully. <br>Don't fall for the tricks! 🧠⚡
+        </p>
+        <button id="startBtn" class="start-btn">START SOLO GAME</button>
+        <button id="challengeBtn" class="start-btn secondary-btn">⚔️ CHALLENGE A FRIEND</button>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div id="gameOverOverlay" class="overlay hidden">
+        <h1>GAME OVER! 💥</h1>
+        <p id="tauntText" style="color: #9ca3af; font-size: 18px;"></p>
+        <div style="font-size: 28px; font-weight: 800; color: #38bdf8;">
+            Final Score: <span id="finalScore">0</span>
+        </div>
+        <button id="restartBtn" class="start-btn">TRY AGAIN</button>
+    </div>
+
+    <!-- Challenge Modal -->
+    <div id="challengeModal" class="overlay hidden">
+        <div class="modal-card">
+            <h2 id="modalTitle">⚔️ Challenge a Friend</h2>
+
+            <!-- Step 1: Create Challenge -->
+            <div id="stepCreate" class="modal-step">
+                <p>Enter your nickname to create a challenge:</p>
+                <input type="text" id="playerNickname" placeholder="Your Nickname" maxlength="15">
+                <button id="createInviteBtn" class="start-btn">Create Invite Link</button>
+            </div>
+
+            <!-- Step 2: Share Challenge Link -->
+            <div id="stepShare" class="modal-step hidden">
+                <p>Share this invitation link with your opponent:</p>
+                <div class="code-box">
+                    <span id="challengeCodeDisplay">BP-0000</span>
+                </div>
+                <div class="button-group">
+                    <button id="copyLinkBtn" class="action-btn secondary">📋 Copy Link</button>
+                    <button id="whatsappShareBtn" class="action-btn whatsapp">💬 WhatsApp</button>
+                </div>
+                <button id="startPlayerAGame" class="start-btn">Play My Turn Now</button>
+            </div>
+
+            <!-- Step 3: Join Challenge (Player B) -->
+            <div id="stepJoin" class="modal-step hidden">
+                <p>You’ve been challenged to Button Panic!</p>
+                <input type="text" id="joinNickname" placeholder="Your Nickname" maxlength="15">
+                <button id="acceptChallengeBtn" class="start-btn">Accept & Start!</button>
+            </div>
+
+            <!-- Step 4: Waiting Screen -->
+            <div id="stepWaiting" class="modal-step hidden">
+                <div class="spinner"></div>
+                <p id="waitingMessage">Your turn is done! Waiting for opponent to finish…</p>
+            </div>
+
+            <!-- Step 5: Head-to-Head Result Announcement -->
+            <div id="stepResults" class="modal-step hidden">
+                <h1 id="winnerText" class="winner-title">🏆 RESULT</h1>
+                <div class="results-comparison">
+                    <div class="player-card">
+                        <h3 id="p1Name">Player A</h3>
+                        <p>Score: <strong id="p1Score">0</strong></p>
+                        <p>Lives Left: <span id="p1Lives">0</span></p>
+                    </div>
+                    <div class="vs-divider">VS</div>
+                    <div class="player-card">
+                        <h3 id="p2Name">Player B</h3>
+                        <p>Score: <strong id="p2Score">0</strong></p>
+                        <p>Lives Left: <span id="p2Lives">0</span></p>
+                    </div>
+                </div>
+                <button id="rematchBtn" class="start-btn">🔄 Rematch</button>
+            </div>
+
+            <button id="closeModalBtn" class="close-modal-btn">&times;</button>
+        </div>
+    </div>
+
+    <!-- External JavaScript Engine -->
+    <script src="script.js"></script>
+</body>
+</html>
