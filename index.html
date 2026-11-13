@@ -48,6 +48,11 @@
             </button>
         </div>
 
+        <!-- Visitor Counter Badge -->
+        <div class="visitor-counter">
+            <span>Views: </span>
+            <img src="https://counter11.optistats.ovh/lacp.php?sc=button-panic-game" alt="visitor counter" border="0"/>
+        </div>
     </div>
 
     <!-- Start Overlay -->
@@ -58,7 +63,6 @@
         </p>
         <button id="startBtn" class="start-btn">START SOLO GAME</button>
         <button id="challengeBtn" class="start-btn secondary-btn">⚔️ CHALLENGE A FRIEND</button>
-        <button id="joinCodeBtn" class="start-btn" style="background:#22c55e; box-shadow:0 0 25px rgba(34,197,94,0.3);">🔑 JOIN WITH CODE</button>
     </div>
 
     <!-- Game Over Overlay -->
@@ -90,17 +94,10 @@
                     <span id="challengeCodeDisplay">BP-0000</span>
                 </div>
                 <div class="button-group">
-                    <button id="copyLinkBtn" class="action-btn secondary">📋 Copy Invite Link</button>
-                    <button id="copyCodeBtn" class="action-btn secondary">🔑 Copy Code</button>
+                    <button id="copyLinkBtn" class="action-btn secondary">📋 Copy Link</button>
+                    <button id="whatsappShareBtn" class="action-btn whatsapp">💬 WhatsApp</button>
                 </div>
                 <button id="startPlayerAGame" class="start-btn">Play My Turn Now</button>
-            </div>
-
-            <!-- Step 2b: Enter a challenge code -->
-            <div id="stepCode" class="modal-step hidden">
-                <p>Enter the challenge code from your friend:</p>
-                <input type="text" id="joinCodeInput" placeholder="e.g. BP-AB12" maxlength="10" autocapitalize="characters" autocomplete="off">
-                <button id="findChallengeBtn" class="start-btn">Find Challenge</button>
             </div>
 
             <!-- Step 3: Join Challenge (Player B) -->
