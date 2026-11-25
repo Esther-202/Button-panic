@@ -12,11 +12,11 @@ const SUPABASE_URL = 'https://vzehtaigujsdlexzvais.supabase.co';
 
 const SUPABASE_ANON_KEY = 'sb_publishable_MFVbyq7BLYggFxiTOanlZw_zmcdPghr';
 
-let supabase = null;
+let supabaseClient = null;
 
 try {
     if (window.supabase) {
-        supabase = window.supabase.createClient(
+        supabaseClient = window.supabase.createClient(
             SUPABASE_URL,
             SUPABASE_ANON_KEY
         );
@@ -142,13 +142,89 @@ let lives = 3;
 
 let highScore = 0;
 
+
+// ---- Difficulty settings ----
+// points = rounds survived x points per round
+
+const DIFFICULTIES = {
+
+    easy: {
+        label: 'EASY', color: '#22c55e',
+        points: 5, time: 1.4, ramp: 0.10, minSpeed: 0.7,
+        hint: 'Simpler rounds · more time · 5 points per round',
+        allow: (i) =>
+            i.type !== 'press_triple' &&
+            i.type !== 'color_green' &&
+            !i.text.startsWith('IGNORE')
+    },
+
+    medium: {
+        label: 'MEDIUM', color: '#eab308',
+        points: 10, time: 1.0, ramp: 0.20, minSpeed: 0.5,
+        hint: 'Standard rounds · 10 points per round',
+        allow: () => true
+    },
+
+    hard: {
+        label: 'HARD', color: '#ef4444',
+        points: 20, time: 0.8, ramp: 0.20, minSpeed: 0.4,
+        hint: 'All the tricks · less time · 20 points per round',
+        allow: () => true
+    }
+
+};
+
+let selectedDifficulty = 'easy';
+
 try {
-    highScore = Number(
-        localStorage.getItem('buttonPanicBest') || 0
-    );
+
+    const savedDifficulty =
+        localStorage.getItem('buttonPanicDifficulty');
+
+    if (savedDifficulty && DIFFICULTIES[savedDifficulty]) {
+        selectedDifficulty = savedDifficulty;
+    }
+
 } catch (error) {
     console.warn("Local storage unavailable");
 }
+
+let activeDifficulty = selectedDifficulty;
+
+let roundsWon = 0;
+
+let currentSessionId = null;
+
+let currentUser = null;
+
+let currentProfile = null;
+
+function bestKey(difficulty) {
+    return 'buttonPanicBest_' + difficulty;
+}
+
+function loadHighScore(difficulty) {
+
+    try {
+
+        let value = localStorage.getItem(bestKey(difficulty));
+
+        // Your old single high score used 10 points per round = Medium
+        if (value === null && difficulty === 'medium') {
+            value = localStorage.getItem('buttonPanicBest');
+        }
+
+        return Number(value || 0);
+
+    } catch (error) {
+
+        return 0;
+
+    }
+
+}
+
+highScore = loadHighScore(selectedDifficulty);
 
 let currentInstruction = null;
 
@@ -241,6 +317,8 @@ const stepJoin = document.getElementById('stepJoin');
 const stepWaiting = document.getElementById('stepWaiting');
 
 const stepResults = document.getElementById('stepResults');
+
+const stepCode = document.getElementById('stepCode');
 
 
 // Check required elements
@@ -451,11 +529,15 @@ function startRound() {
 
     // Select instruction
 
-    const index = Math.floor(
-        rng() * instructionsList.length
+    const pool = instructionsList.filter(
+        DIFFICULTIES[activeDifficulty].allow
     );
 
-    currentInstruction = instructionsList[index];
+    const index = Math.floor(
+        rng() * pool.length
+    );
+
+    currentInstruction = pool[index];
 
     instructionEl.textContent =
         currentInstruction.text;
@@ -491,13 +573,21 @@ function startRound() {
 
     // Increase difficulty as score increases
 
+    const cfg = DIFFICULTIES[activeDifficulty];
+
     const speedFactor = Math.max(
-        0.5,
-        1 - (score * 0.02)
+        cfg.minSpeed,
+        1 - (roundsWon * cfg.ramp)
     );
 
-    roundTime =
-        currentInstruction.duration * speedFactor;
+    // Holding needs 1 second, so never go below 1.5s for HOLD rounds
+    const floorTime =
+        currentInstruction.type === 'hold' ? 1500 : 600;
+
+    roundTime = Math.max(
+        floorTime,
+        currentInstruction.duration * cfg.time * speedFactor
+    );
 
 
     // Start timer
@@ -524,7 +614,9 @@ function resolveRound(success) {
 
         playSound('success');
 
-        score += 10;
+        roundsWon++;
+
+        score = roundsWon * DIFFICULTIES[activeDifficulty].points;
 
         scoreEl.textContent = score;
 
@@ -539,10 +631,7 @@ function resolveRound(success) {
 
             try {
 
-                localStorage.setItem(
-                    'buttonPanicBest',
-                    highScore
-                );
+                localStorage.setItem(bestKey(activeDifficulty), highScore);
 
             } catch (error) {
 
@@ -813,6 +902,18 @@ function startGame() {
 
     gameStarted = true;
 
+    roundsWon = 0;
+
+    // Friend challenges always use Medium
+    activeDifficulty =
+        currentChallengeId ? 'medium' : selectedDifficulty;
+
+    highScore = loadHighScore(activeDifficulty);
+
+    highScoreEl.textContent = highScore;
+
+    updateModeBadge();
+
 
     scoreEl.textContent = '0';
 
@@ -870,6 +971,8 @@ function endGame() {
 
     finalScoreEl.textContent = score;
 
+    recordSoloResult();
+
 
     const randomTaunt = Math.floor(
         Math.random() * taunts.length
@@ -889,13 +992,13 @@ function endGame() {
 
 document.getElementById('startBtn').addEventListener(
     'click',
-    startGame
+    startSoloGame
 );
 
 
 document.getElementById('restartBtn').addEventListener(
     'click',
-    startGame
+    startSoloGame
 );
 
 
@@ -910,7 +1013,8 @@ function showModalStep(step) {
         stepShare,
         stepJoin,
         stepWaiting,
-        stepResults
+        stepResults,
+        stepCode
 
     ].forEach(s => {
 
@@ -920,6 +1024,8 @@ function showModalStep(step) {
 
 
     step.classList.remove('hidden');
+
+    prefillNicknames(step);
 
 }
 
@@ -1025,7 +1131,7 @@ document.getElementById('createInviteBtn').addEventListener(
         }
 
 
-        if (!supabase) {
+        if (!supabaseClient) {
 
             alert(
                 "Unable to connect to the game server. Please try again."
@@ -1059,7 +1165,7 @@ document.getElementById('createInviteBtn').addEventListener(
 
             // Create challenge in Supabase
 
-            const { data: challenge, error } = await supabase
+            const { data: challenge, error } = await supabaseClient
 
                 .from('challenges')
 
@@ -1095,7 +1201,7 @@ document.getElementById('createInviteBtn').addEventListener(
             // Register Player A
 
             const { error: participantError } =
-                await supabase
+                await supabaseClient
 
                     .from('challenge_participants')
 
@@ -1246,7 +1352,7 @@ document.getElementById('acceptChallengeBtn').addEventListener(
         }
 
 
-        if (!supabase || !currentChallengeId) {
+        if (!supabaseClient || !currentChallengeId) {
 
             alert("Invalid challenge or server connection.");
 
@@ -1270,7 +1376,7 @@ document.getElementById('acceptChallengeBtn').addEventListener(
 
             // Verify that challenge exists
 
-            const { data: challenge, error } = await supabase
+            const { data: challenge, error } = await supabaseClient
 
                 .from('challenges')
 
@@ -1302,7 +1408,7 @@ document.getElementById('acceptChallengeBtn').addEventListener(
 
             // Register Player B
 
-            const { error: joinError } = await supabase
+            const { error: joinError } = await supabaseClient
 
                 .from('challenge_participants')
 
@@ -1372,7 +1478,7 @@ async function submitChallengeResults() {
         "Your turn is done! Waiting for your opponent...";
 
 
-    if (!supabase || !currentChallengeId) {
+    if (!supabaseClient || !currentChallengeId) {
 
         document.getElementById(
             'waitingMessage'
@@ -1388,7 +1494,7 @@ async function submitChallengeResults() {
 
         // Submit player's score
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
 
             .from('challenge_participants')
 
@@ -1458,7 +1564,7 @@ async function checkOpponentResults() {
         try {
 
             const { data: participants, error } =
-                await supabase
+                await supabaseClient
 
                     .from('challenge_participants')
 
@@ -1591,6 +1697,827 @@ function displayWinnerScreen(participants) {
                 window.location.pathname;
 
         };
+
+}
+
+
+// ======================================================
+// 26B. DIFFICULTY, ACCOUNTS, PROFILE, RANKS, JOIN WITH CODE
+// ======================================================
+
+function byId(id) {
+    return document.getElementById(id);
+}
+
+function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), ms)
+        )
+    ]);
+}
+
+
+// ---------- Mode badge ----------
+
+function updateModeBadge() {
+
+    if (currentChallengeId) {
+
+        modeBadge.textContent = "⚔️ MULTIPLAYER CHALLENGE · MEDIUM";
+        modeBadge.style.color = "#eab308";
+
+    } else {
+
+        const cfg = DIFFICULTIES[activeDifficulty];
+
+        modeBadge.textContent = "SOLO · " + cfg.label;
+        modeBadge.style.color = cfg.color;
+
+    }
+
+}
+
+
+// ---------- Difficulty selector ----------
+
+const diffButtons = document.querySelectorAll('.diff-btn');
+
+function renderDifficulty() {
+
+    diffButtons.forEach(btn => {
+        btn.classList.toggle(
+            'selected',
+            btn.dataset.diff === selectedDifficulty
+        );
+    });
+
+    byId('diffHint').textContent =
+        DIFFICULTIES[selectedDifficulty].hint;
+
+    activeDifficulty = selectedDifficulty;
+
+    highScore = loadHighScore(selectedDifficulty);
+
+    highScoreEl.textContent = highScore;
+
+    updateModeBadge();
+
+}
+
+diffButtons.forEach(btn => {
+
+    btn.addEventListener('click', () => {
+
+        selectedDifficulty = btn.dataset.diff;
+
+        try {
+            localStorage.setItem(
+                'buttonPanicDifficulty',
+                selectedDifficulty
+            );
+        } catch (error) { /* ignore */ }
+
+        renderDifficulty();
+
+    });
+
+});
+
+renderDifficulty();
+
+
+// ---------- Start a solo game (ranked when signed in) ----------
+
+async function startSoloGame() {
+
+    // A plain solo game is never a friend challenge
+    currentChallengeId = null;
+    currentSeed = null;
+    currentPlayerSlot = 'player_a';
+    currentSessionId = null;
+
+    clearInterval(opponentCheckInterval);
+    clearTimeout(opponentCheckTimeout);
+
+    const buttons = [byId('startBtn'), byId('restartBtn')];
+
+    buttons.forEach(b => { b.disabled = true; });
+
+    if (currentUser && supabaseClient) {
+
+        try {
+
+            const { data, error } = await withTimeout(
+                supabaseClient.rpc('bp_start_game', {
+                    p_difficulty: selectedDifficulty
+                }),
+                5000
+            );
+
+            if (error) throw error;
+
+            currentSessionId = data;
+
+        } catch (error) {
+
+            console.warn("Ranked game could not start:", error);
+
+            currentSessionId = null;
+
+        }
+
+    }
+
+    buttons.forEach(b => { b.disabled = false; });
+
+    startGame();
+
+}
+
+
+// ---------- Save a solo result to the ranks ----------
+
+async function recordSoloResult() {
+
+    const msg = byId('rankMessage');
+
+    if (!currentUser) {
+        msg.textContent = "Sign in to save your scores to the ranks.";
+        return;
+    }
+
+    if (!currentSessionId || !supabaseClient) {
+        msg.textContent =
+            "This game was not ranked (the server could not be reached when it started).";
+        return;
+    }
+
+    const sessionId = currentSessionId;
+
+    currentSessionId = null;
+
+    msg.textContent = "Saving your score…";
+
+    try {
+
+        const { data, error } = await withTimeout(
+            supabaseClient.rpc('bp_finish_game', {
+                p_session: sessionId,
+                p_rounds: roundsWon
+            }),
+            8000
+        );
+
+        if (error) throw error;
+
+        if (!data || !data.accepted) {
+            msg.textContent =
+                "This score could not be verified, so it was not counted.";
+        } else if (data.points === 0) {
+            msg.textContent =
+                "No rounds survived, so no points this time.";
+        } else {
+            msg.textContent =
+                "✅ +" + data.points + " points saved to the ranks!";
+        }
+
+    } catch (error) {
+
+        console.error("Saving score failed:", error);
+
+        msg.textContent =
+            "Could not save your score: " +
+            (error.message || "please try again.");
+
+    }
+
+}
+
+
+// ---------- Nickname prefill ----------
+
+function prefillNicknames(step) {
+
+    if (!currentProfile || !currentProfile.username) return;
+
+    const name = String(currentProfile.username).slice(0, 15);
+
+    if (step === stepCreate && !byId('playerNickname').value) {
+        byId('playerNickname').value = name;
+    }
+
+    if (step === stepJoin && !byId('joinNickname').value) {
+        byId('joinNickname').value = name;
+    }
+
+}
+
+
+// ---------- Generic close buttons ----------
+
+document.querySelectorAll('[data-close]').forEach(btn => {
+
+    btn.addEventListener('click', () => {
+
+        btn.closest('.overlay').classList.add('hidden');
+
+    });
+
+});
+
+
+// ---------- Accounts ----------
+
+let authMode = 'signin';
+
+function updateAuthPill() {
+
+    const pill = byId('authPill');
+
+    if (currentUser) {
+
+        pill.textContent =
+            "👤 " + ((currentProfile && currentProfile.username) || "Player");
+
+    } else {
+
+        pill.textContent = "👤 Guest · Sign in";
+
+    }
+
+}
+
+async function refreshUser(session) {
+
+    currentUser = session ? session.user : null;
+
+    currentProfile = null;
+
+    updateAuthPill();
+
+    if (currentUser && supabaseClient) {
+
+        try {
+
+            const { data, error } = await supabaseClient.rpc('bp_my_profile');
+
+            if (error) throw error;
+
+            currentProfile = data;
+
+        } catch (error) {
+
+            console.warn("Could not load profile:", error);
+
+        }
+
+        updateAuthPill();
+
+    }
+
+}
+
+function setAuthMode(mode) {
+
+    authMode = mode;
+
+    const signup = mode === 'signup';
+
+    byId('authTitle').textContent =
+        signup ? "👤 Create account" : "👤 Sign in";
+
+    byId('authSubmitBtn').textContent =
+        signup ? "Create account" : "Sign in";
+
+    byId('authToggleBtn').textContent =
+        signup ? "Already have an account? Sign in"
+               : "New here? Create an account";
+
+    byId('authUsername').classList.toggle('hidden', !signup);
+
+    byId('authPassword').autocomplete =
+        signup ? 'new-password' : 'current-password';
+
+    byId('authMessage').textContent = '';
+
+}
+
+function showAuthMessage(text, ok) {
+
+    const el = byId('authMessage');
+
+    el.textContent = text;
+
+    el.classList.toggle('ok', !!ok);
+
+}
+
+function openAuthModal() {
+
+    setAuthMode('signin');
+
+    byId('authModal').classList.remove('hidden');
+
+}
+
+byId('authToggleBtn').addEventListener('click', () => {
+
+    setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+
+});
+
+byId('authSubmitBtn').addEventListener('click', async () => {
+
+    if (!supabaseClient) {
+        showAuthMessage("Cannot reach the server right now.");
+        return;
+    }
+
+    const email = byId('authEmail').value.trim();
+    const password = byId('authPassword').value;
+    const username = byId('authUsername').value.trim();
+
+    if (!email.includes('@')) {
+        showAuthMessage("Enter a valid email.");
+        return;
+    }
+
+    if (password.length < 6) {
+        showAuthMessage("Password must be at least 6 characters.");
+        return;
+    }
+
+    if (authMode === 'signup' && !/^[A-Za-z0-9_]{3,15}$/.test(username)) {
+        showAuthMessage(
+            "Username: 3-15 letters, numbers or underscores."
+        );
+        return;
+    }
+
+    const submit = byId('authSubmitBtn');
+
+    submit.disabled = true;
+
+    showAuthMessage("Please wait…", true);
+
+    try {
+
+        if (authMode === 'signup') {
+
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: { data: { username: username } }
+            });
+
+            if (error) throw error;
+
+            if (!data.session) {
+
+                setAuthMode('signin');
+
+                showAuthMessage(
+                    "Account created! Check your email to confirm it, then sign in.",
+                    true
+                );
+
+                return;
+
+            }
+
+        } else {
+
+            const { error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+
+            if (error) throw error;
+
+        }
+
+        byId('authPassword').value = '';
+
+        byId('authModal').classList.add('hidden');
+
+    } catch (error) {
+
+        showAuthMessage(error.message || "Something went wrong.");
+
+    } finally {
+
+        submit.disabled = false;
+
+    }
+
+});
+
+byId('authPill').addEventListener('click', () => {
+
+    if (currentUser) {
+        openProfile();
+    } else {
+        openAuthModal();
+    }
+
+});
+
+
+// ---------- Profile and trophies ----------
+
+const TROPHIES = [
+
+    { icon: '🥉', name: 'First Steps',
+      desc: 'Finish your first ranked game',
+      test: p => p.games >= 1 },
+
+    { icon: '🎯', name: 'Warmed Up',
+      desc: 'Survive 10 rounds in one game',
+      test: p => p.best_rounds >= 10 },
+
+    { icon: '🔥', name: 'On Fire',
+      desc: 'Survive 25 rounds in one game',
+      test: p => p.best_rounds >= 25 },
+
+    { icon: '💪', name: 'Hard Hero',
+      desc: 'Score 100+ in one Hard game',
+      test: p => p.best_hard >= 100 },
+
+    { icon: '💯', name: 'Point Collector',
+      desc: 'Earn 1,000 points in total',
+      test: p => p.total_points >= 1000 },
+
+    { icon: '👑', name: 'Top 10',
+      desc: 'Reach the global top 10',
+      test: p => p.rank && p.rank <= 10 }
+
+];
+
+function makeEl(tag, className, text) {
+
+    const el = document.createElement(tag);
+
+    if (className) el.className = className;
+
+    if (text !== undefined) el.textContent = text;
+
+    return el;
+
+}
+
+function statCell(value, label) {
+
+    const cell = makeEl('div', 'stat-cell');
+
+    cell.appendChild(makeEl('b', '', String(value)));
+
+    cell.appendChild(makeEl('span', '', label));
+
+    return cell;
+
+}
+
+function renderProfile(p) {
+
+    const body = byId('profileBody');
+
+    body.replaceChildren();
+
+    body.appendChild(makeEl('div', 'profile-name', p.username));
+
+    const grid = makeEl('div', 'stat-grid');
+
+    grid.appendChild(statCell(p.rank ? '#' + p.rank : '-', 'Global rank'));
+    grid.appendChild(statCell(p.total_points, 'Total points'));
+    grid.appendChild(statCell(p.games, 'Games'));
+    grid.appendChild(statCell(p.best_rounds, 'Best rounds'));
+    grid.appendChild(statCell(p.best_easy, 'Best easy'));
+    grid.appendChild(statCell(p.best_medium, 'Best medium'));
+    grid.appendChild(statCell(p.best_hard, 'Best hard'));
+
+    body.appendChild(grid);
+
+    body.appendChild(makeEl('div', 'trophy-title', 'TROPHIES'));
+
+    const trophies = makeEl('div', 'trophy-grid');
+
+    TROPHIES.forEach(t => {
+
+        const unlocked = !!t.test(p);
+
+        const card = makeEl('div', 'trophy' + (unlocked ? '' : ' locked'));
+
+        card.appendChild(makeEl('span', 'icon', t.icon));
+        card.appendChild(makeEl('b', '', t.name));
+        card.appendChild(makeEl('span', '', t.desc));
+
+        trophies.appendChild(card);
+
+    });
+
+    body.appendChild(trophies);
+
+    const out = makeEl('button', 'menu-btn wide', 'SIGN OUT');
+
+    out.addEventListener('click', async () => {
+
+        try {
+            await supabaseClient.auth.signOut();
+        } catch (error) {
+            console.warn("Sign out failed:", error);
+        }
+
+        byId('profileModal').classList.add('hidden');
+
+    });
+
+    body.appendChild(out);
+
+}
+
+async function openProfile() {
+
+    const body = byId('profileBody');
+
+    byId('profileModal').classList.remove('hidden');
+
+    body.replaceChildren();
+
+    if (!currentUser) {
+
+        body.appendChild(makeEl('p', '',
+            "You're playing as a guest. Sign in to save your scores, earn trophies and appear in the ranks."));
+
+        const btn = makeEl('button', 'start-btn', 'Sign in');
+
+        btn.addEventListener('click', () => {
+            byId('profileModal').classList.add('hidden');
+            openAuthModal();
+        });
+
+        body.appendChild(btn);
+
+        return;
+
+    }
+
+    body.appendChild(makeEl('p', '', 'Loading…'));
+
+    try {
+
+        const { data, error } = await withTimeout(
+            supabaseClient.rpc('bp_my_profile'),
+            8000
+        );
+
+        if (error) throw error;
+
+        if (!data) throw new Error('No profile');
+
+        currentProfile = data;
+
+        updateAuthPill();
+
+        renderProfile(data);
+
+    } catch (error) {
+
+        console.error("Profile failed:", error);
+
+        body.replaceChildren(makeEl('p', 'form-message',
+            "Could not load your profile right now."));
+
+    }
+
+}
+
+byId('profileBtn').addEventListener('click', openProfile);
+
+
+// ---------- Leaderboard ----------
+
+let lbPeriod = 'global';
+
+async function loadLeaderboard(period) {
+
+    lbPeriod = period;
+
+    document.querySelectorAll('.tab-btn').forEach(tab => {
+        tab.classList.toggle('selected', tab.dataset.period === period);
+    });
+
+    const list = byId('lbList');
+    const status = byId('lbStatus');
+
+    list.replaceChildren();
+
+    status.textContent = "Loading…";
+
+    if (!supabaseClient) {
+        status.textContent = "Cannot reach the server right now.";
+        return;
+    }
+
+    try {
+
+        const { data, error } = await withTimeout(
+            supabaseClient.rpc('bp_leaderboard', { p_period: period }),
+            8000
+        );
+
+        if (error) throw error;
+
+        if (period !== lbPeriod) return;
+
+        const rows = data || [];
+
+        status.textContent =
+            rows.length ? "" : "No scores yet. Be the first!";
+
+        rows.forEach(row => {
+
+            const el = makeEl('div', 'lb-row' + (row.is_me ? ' me' : ''));
+
+            const rank = Number(row.rank);
+
+            const medal = rank === 1 ? '🥇'
+                        : rank === 2 ? '🥈'
+                        : rank === 3 ? '🥉'
+                        : '#' + rank;
+
+            el.appendChild(makeEl('span', 'lb-rank', medal));
+            el.appendChild(makeEl('span', 'lb-name', row.username));
+            el.appendChild(makeEl('span', 'lb-pts', row.points + ' pts'));
+
+            list.appendChild(el);
+
+        });
+
+    } catch (error) {
+
+        console.error("Leaderboard failed:", error);
+
+        if (period === lbPeriod) {
+            status.textContent = "Could not load the ranks right now.";
+        }
+
+    }
+
+}
+
+byId('ranksBtn').addEventListener('click', () => {
+
+    byId('ranksModal').classList.remove('hidden');
+
+    loadLeaderboard(lbPeriod);
+
+});
+
+document.querySelectorAll('.tab-btn').forEach(tab => {
+
+    tab.addEventListener('click', () => {
+
+        loadLeaderboard(tab.dataset.period);
+
+    });
+
+});
+
+
+// ---------- Join with code ----------
+
+byId('joinCodeBtn').addEventListener('click', () => {
+
+    byId('codeMessage').textContent = '';
+
+    challengeModal.classList.remove('hidden');
+
+    showModalStep(stepCode);
+
+});
+
+byId('findChallengeBtn').addEventListener('click', async () => {
+
+    const msg = byId('codeMessage');
+
+    let code = byId('joinCodeInput').value
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '');
+
+    if (/^\d{4}$/.test(code)) code = 'BP-' + code;
+
+    if (!/^BP-\d{4}$/.test(code)) {
+        msg.textContent = "Enter a code like BP-1234.";
+        return;
+    }
+
+    if (!supabaseClient) {
+        msg.textContent = "Cannot reach the server right now.";
+        return;
+    }
+
+    const button = byId('findChallengeBtn');
+
+    button.disabled = true;
+
+    msg.textContent = "Looking…";
+
+    try {
+
+        const { data: challenges, error } = await withTimeout(
+            supabaseClient
+                .from('challenges')
+                .select('id, seed, challenge_code')
+                .eq('challenge_code', code)
+                .limit(5),
+            8000
+        );
+
+        if (error) throw error;
+
+        if (!challenges || challenges.length === 0) {
+            msg.textContent = "No challenge found with that code.";
+            return;
+        }
+
+        const ids = challenges.map(c => c.id);
+
+        const { data: taken, error: takenError } = await withTimeout(
+            supabaseClient
+                .from('challenge_participants')
+                .select('challenge_id, player_slot')
+                .in('challenge_id', ids),
+            8000
+        );
+
+        if (takenError) throw takenError;
+
+        const takenIds = new Set(
+            (taken || [])
+                .filter(p => p.player_slot === 'player_b')
+                .map(p => p.challenge_id)
+        );
+
+        const open = challenges.find(c => !takenIds.has(c.id));
+
+        if (!open) {
+            msg.textContent = "That challenge already has two players.";
+            return;
+        }
+
+        currentChallengeId = open.id;
+        currentSeed = Number(open.seed);
+        currentPlayerSlot = 'player_b';
+
+        updateModeBadge();
+
+        msg.textContent = '';
+
+        showModalStep(stepJoin);
+
+    } catch (error) {
+
+        console.error("Finding challenge failed:", error);
+
+        msg.textContent =
+            "Could not look up that code: " +
+            (error.message || "please try again.");
+
+    } finally {
+
+        button.disabled = false;
+
+    }
+
+});
+
+
+// ---------- Menu button on the game-over screen ----------
+
+byId('menuBtn').addEventListener('click', () => {
+
+    gameOverOverlay.classList.add('hidden');
+
+    startOverlay.classList.remove('hidden');
+
+    renderDifficulty();
+
+});
+
+
+// ---------- Watch sign-in state ----------
+
+if (supabaseClient && supabaseClient.auth) {
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+
+        // Run later so we never call Supabase from inside its own callback
+        setTimeout(() => refreshUser(session), 0);
+
+    });
 
 }
 
