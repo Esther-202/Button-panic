@@ -57,12 +57,30 @@
 
     <!-- Start Overlay -->
     <div id="startOverlay" class="overlay">
+        <button id="authPill" class="auth-pill">👤 Guest · Sign in</button>
+
         <h1>BUTTON PANIC!</h1>
-        <p style="color: #9ca3af; max-width: 300px; line-height: 1.5;">
+        <p class="tagline">
             Follow instructions carefully. <br>Don't fall for the tricks! 🧠⚡
         </p>
+
+        <div class="diff-label">DIFFICULTY</div>
+        <div class="diff-row">
+            <button class="diff-btn easy" data-diff="easy">EASY</button>
+            <button class="diff-btn medium" data-diff="medium">MEDIUM</button>
+            <button class="diff-btn hard" data-diff="hard">HARD</button>
+        </div>
+        <p id="diffHint" class="diff-hint"></p>
+        <p class="diff-hint">Friend challenges always use Medium.</p>
+
         <button id="startBtn" class="start-btn">START SOLO GAME</button>
         <button id="challengeBtn" class="start-btn secondary-btn">⚔️ CHALLENGE A FRIEND</button>
+        <button id="joinCodeBtn" class="start-btn green-btn">🔑 JOIN WITH CODE</button>
+
+        <div class="menu-row">
+            <button id="profileBtn" class="menu-btn">👤 PROFILE</button>
+            <button id="ranksBtn" class="menu-btn">🏆 RANKS</button>
+        </div>
     </div>
 
     <!-- Game Over Overlay -->
@@ -72,7 +90,9 @@
         <div style="font-size: 28px; font-weight: 800; color: #38bdf8;">
             Final Score: <span id="finalScore">0</span>
         </div>
+        <p id="rankMessage" class="rank-message"></p>
         <button id="restartBtn" class="start-btn">TRY AGAIN</button>
+        <button id="menuBtn" class="menu-btn wide">MENU</button>
     </div>
 
     <!-- Challenge Modal -->
@@ -98,6 +118,14 @@
                     <button id="whatsappShareBtn" class="action-btn whatsapp">💬 WhatsApp</button>
                 </div>
                 <button id="startPlayerAGame" class="start-btn">Play My Turn Now</button>
+            </div>
+
+            <!-- Step 2b: Enter a challenge code -->
+            <div id="stepCode" class="modal-step hidden">
+                <p>Enter the challenge code your friend sent you:</p>
+                <input type="text" id="joinCodeInput" placeholder="BP-1234" maxlength="8" autocapitalize="characters" autocomplete="off">
+                <button id="findChallengeBtn" class="start-btn">Find Challenge</button>
+                <p id="codeMessage" class="form-message"></p>
             </div>
 
             <!-- Step 3: Join Challenge (Player B) -->
@@ -133,6 +161,48 @@
             </div>
 
             <button id="closeModalBtn" class="close-modal-btn">&times;</button>
+        </div>
+    </div>
+
+    <!-- Sign in / Sign up Modal -->
+    <div id="authModal" class="overlay hidden">
+        <div class="modal-card">
+            <h2 id="authTitle">👤 Sign in</h2>
+            <div class="modal-step">
+                <input type="text" id="authUsername" class="hidden" placeholder="Username (3-15 letters/numbers)" maxlength="15" autocomplete="username" autocapitalize="none">
+                <input type="email" id="authEmail" placeholder="Email" autocomplete="email" autocapitalize="none">
+                <input type="password" id="authPassword" placeholder="Password (6+ characters)" autocomplete="current-password">
+                <button id="authSubmitBtn" class="start-btn">Sign in</button>
+                <p id="authMessage" class="form-message"></p>
+                <button id="authToggleBtn" class="link-btn">New here? Create an account</button>
+                <p class="diff-hint">Playing as a guest works too, but only signed-in players appear in the ranks.</p>
+            </div>
+            <button class="close-modal-btn" data-close>&times;</button>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profileModal" class="overlay hidden">
+        <div class="modal-card">
+            <h2>👤 Profile</h2>
+            <div id="profileBody" class="modal-step"></div>
+            <button class="close-modal-btn" data-close>&times;</button>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="ranksModal" class="overlay hidden">
+        <div class="modal-card">
+            <h2>🏆 Leaderboard</h2>
+            <div class="tab-row">
+                <button class="tab-btn selected" data-period="global">Global</button>
+                <button class="tab-btn" data-period="weekly">Weekly</button>
+                <button class="tab-btn" data-period="monthly">Monthly</button>
+            </div>
+            <p id="lbStatus" class="form-message"></p>
+            <div id="lbList" class="lb-list"></div>
+            <p class="diff-hint left">Ranking rules: points = rounds survived × difficulty (Easy 5, Medium 10, Hard 20). Scores are checked by the server, each game counts once, and only signed-in players are ranked. Weekly starts Monday, monthly on the 1st (UTC).</p>
+            <button class="close-modal-btn" data-close>&times;</button>
         </div>
     </div>
 
